@@ -24,7 +24,7 @@ void setup(void)
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, pass);
-  
+
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
@@ -42,6 +42,8 @@ void setup(void)
 
   _setupRTC();
   _trySyncRTC();
+
+  displayState.requestChangeState(STATE_DISPLAY_TIME);
 }
 
 void loop(void)
@@ -51,28 +53,44 @@ void loop(void)
 
   P.displayAnimate();
 
-  if (P.getZoneStatus(ZONE_LOWER) && P.getZoneStatus(ZONE_UPPER))
-  {
-    if (displayState == STATE_DISPLAY_TIME) {
-      P.setFont(ZONE_LOWER, BigFontLower);
-      P.setFont(ZONE_UPPER, BigFontUpper);
-      P.displayZoneText(ZONE_LOWER, currentTimeString, PA_CENTER, 0, 50, PA_PRINT, PA_NO_EFFECT);
-      P.displayZoneText(ZONE_UPPER, currentTimeString, PA_CENTER, 0, 50, PA_PRINT, PA_NO_EFFECT);
+  bool upperAnimationComplete = P.getZoneStatus(ZONE_UPPER);
+  bool lowerAnimationComplete = P.getZoneStatus(ZONE_LOWER);
+  bool allAnimationComplete = upperAnimationComplete && lowerAnimationComplete;
+  bool someAnimationComplete = upperAnimationComplete || lowerAnimationComplete;
+  bool stateChange = displayState.stateChangeRequested();
+
+  if (stateChange || someAnimationComplete) {
+    if (stateChange) {
+      P.displayClear();
     }
-    else if (displayState == STATE_DISPLAY_TEMPERATURE) {
-      P.setFont(ZONE_UPPER, genericFont);
-      P.setFont(ZONE_LOWER, genericFont);
-      P.displayZoneText(ZONE_UPPER, "-11\x0a6", PA_LEFT, 0, 50, PA_PRINT, PA_NO_EFFECT);
-      P.displayZoneText(ZONE_LOWER, "+25\x0a6", PA_LEFT, 0, 50, PA_PRINT, PA_NO_EFFECT);
+    Serial.println("state change requested to" + String(displayState.getRequestedState()));
+    if (displayState.getRequestedState() == STATE_DISPLAY_TIME) {
+      _displayBigClock();
     }
-    else if (displayState == STATE_DISPLAY_DATE) {
-      P.setFont(ZONE_UPPER, genericFont);
-      P.setFont(ZONE_LOWER, genericFont);
-      P.displayZoneText(ZONE_UPPER, "хуй.", PA_LEFT, 0, 50, PA_PRINT, PA_NO_EFFECT);
-      P.displayZoneText(ZONE_LOWER, "пысько", PA_LEFT, 0, 50, PA_PRINT, PA_NO_EFFECT);
+    else if (displayState.getRequestedState() == STATE_DISPLAY_TEMPERATURE) {
+      if (stateChange) {
+        P.setFont(ZONE_UPPER, genericFont);
+        P.setFont(ZONE_LOWER, genericFont);
+        P.displayZoneText(ZONE_UPPER, "-11\x0a6", PA_LEFT, 0, 4000, PA_PRINT, PA_NO_EFFECT);
+        P.displayZoneText(ZONE_LOWER, "+25\x0a6", PA_LEFT, 0, 4000, PA_PRINT, PA_NO_EFFECT);
+      }
+      else if (allAnimationComplete) {
+        displayState.requestChangeState(STATE_DISPLAY_TIME);
+      }
     }
-    // synchronise the start
-    P.synchZoneStart();
+    else if (displayState.getRequestedState() == STATE_DISPLAY_DATE) {
+      if (stateChange) {
+        _displayUpperClock();
+        _displayLowerScroll(_constructDateString());
+      }
+      else if (upperAnimationComplete) {
+        _displayUpperClock();
+      }
+      else if (lowerAnimationComplete) {
+        displayState.requestChangeState(STATE_DISPLAY_TIME);
+      }
+    }
+    displayState.commitStateChange();
   }
 }
 
@@ -92,22 +110,54 @@ void _checkTime() {
 void _checkStateMachine() {
   int b1 = _checkButtonPress(button1);
   if (b1 == SHORT_PRESS) {
-    if (displayState == STATE_DISPLAY_TIME) {
-        displayState = STATE_DISPLAY_TEMPERATURE;
+    if (displayState.getCurrentState() == STATE_DISPLAY_TIME) {
+      displayState.requestChangeState(STATE_DISPLAY_TEMPERATURE);
     }
     else {
-      displayState = STATE_DISPLAY_TIME;
+      displayState.requestChangeState(STATE_DISPLAY_TIME);
     }
   }
   else if (b1 == LONG_PRESS) {
-    if (displayState == STATE_DISPLAY_TIME) {
-        displayState = STATE_DISPLAY_DATE;
+    if (displayState.getCurrentState() == STATE_DISPLAY_TIME) {
+      displayState.requestChangeState(STATE_DISPLAY_DATE);
     }
   }
 }
 
+void _displayBigClock() {
+  P.setFont(ZONE_LOWER, BigFontLower);
+  P.setFont(ZONE_UPPER, BigFontUpper);
+  P.displayZoneText(ZONE_LOWER, currentTimeString, PA_CENTER, 0, 500, PA_PRINT, PA_NO_EFFECT);
+  P.displayZoneText(ZONE_UPPER, currentTimeString, PA_CENTER, 0, 500, PA_PRINT, PA_NO_EFFECT);
+  P.synchZoneStart();
+}
+
+void _displayUpperClock() {
+  P.setFont(ZONE_UPPER, genericFont);
+  P.displayZoneText(ZONE_UPPER, currentTimeString, PA_CENTER, 0, 500, PA_PRINT, PA_NO_EFFECT);
+}
+
+void _displayLowerScroll(String what) {
+  what += "        ";
+  Serial.println(what);
+  Serial.println(what.length());
+  P.setFont(ZONE_LOWER, genericFont);
+  what.toCharArray(scrollMessage, what.length()+1);
+  P.displayZoneText(ZONE_LOWER, scrollMessage, PA_LEFT, 30, 0, PA_SCROLL_LEFT, PA_SCROLL_LEFT);
+}
+
+String _constructDateString() {
+  RtcDateTime curr = Rtc.GetDateTime();
+  String result = String(curr.Day()) + " " + monthNames[curr.Month()-1] + " " + String(curr.Year()) + ", "+dayOfWeekNames[curr.DayOfWeek()-1];
+  return result;
+}
+
 int _checkButtonPress(ButtonTimeDescription &btn) {
+
   int state = digitalRead(btn.buttonPin);
+  long endPressed = millis();
+  long timeHold = endPressed - btn.startPressed;
+
   if (btn.buttonState != state) {
     btn.buttonGlitchThreshold++;
     if (btn.buttonGlitchThreshold < MAX_BUTTON_GLITCH_THRESHOLD) {
@@ -120,18 +170,22 @@ int _checkButtonPress(ButtonTimeDescription &btn) {
       return NO_RESULT;
     }
     else {
-      long endPressed = millis();
-      long timeHold = endPressed - btn.startPressed;
-      if (timeHold < 200) {
+      if (timeHold < 0) {
+        btn.buttonState = state; //long press recovery
+        return NO_RESULT;
+      }
+      else if (timeHold < 200) {
         return NO_RESULT;
       }
       btn.buttonState = state;
-      if (timeHold >= 1000) {
-        return LONG_PRESS;
-      }
       return SHORT_PRESS;
     }
   }
+  else if (btn.buttonState == HIGH && timeHold >= 1000) {
+    btn.startPressed = millis()+99999999999;
+    return LONG_PRESS;
+  }
+  return NO_RESULT;
 }
 
 void _setupRTC() {
@@ -152,7 +206,6 @@ void _trySyncRTC() {
     RtcDateTime current = RtcDateTime(year(res), month(res), day(res), hour(res), minute(res), second(res));
     Rtc.SetDateTime(current);
     RtcDateTime now1 = Rtc.GetDateTime();
-//    printDateTime(now1);
     Serial.println();
     Serial.println("seems synced!");
   }
@@ -166,21 +219,3 @@ String _get2digits(int number) {
   res = res + number;
   return res;
 }
-
-// #define countof(a) (sizeof(a) / sizeof(a[0]))
-//
-// void printDateTime(const RtcDateTime& dt)
-// {
-//     char datestring[20];
-//
-//     snprintf_P(datestring,
-//             countof(datestring),
-//             PSTR("%02u/%02u/%04u %02u:%02u:%02u"),
-//             dt.Month(),
-//             dt.Day(),
-//             dt.Year(),
-//             dt.Hour(),
-//             dt.Minute(),
-//             dt.Second() );
-//     Serial.print(datestring);
-// }

@@ -11,10 +11,7 @@ RtcDS3231<TwoWire> Rtc(Wire);
 #include "Parola_Fonts_data.h"
 #include "ntp_sync.h"
 #include "button_time_description.h"
-
-#define STATE_DISPLAY_TIME 0
-#define STATE_DISPLAY_TEMPERATURE 1
-#define STATE_DISPLAY_DATE 2
+#include "display_state.h"
 
 #define MAX_ZONES 2
 #define ZONE_SIZE 4
@@ -37,7 +34,7 @@ const char pass[] = "espnodeMcu^guestPass";       // your network password
 const char delim[] = ":\x080";
 
 const String monthNames[12] = {"€нвар€", "феврал€", "марта", "апрел€", "ма€", "июн€", "июл€", "августа", "сент€бр€", "окт€бр€", "но€бр€", "декабр€"};
-const String dayOfWeekNames[12] = {"понедельник", "вторник", "среда", "четверг", "п€тница", "суббота", "воскресенье"};
+const String dayOfWeekNames[7] = {"понедельник", "вторник", "среда", "четверг", "п€тница", "суббота", "воскресенье"};
 
 WiFiUDP Udp;
 unsigned int localPort = 8888;  // local port to listen for UDP packets
@@ -47,9 +44,10 @@ int hours = 0;
 int minutes = 0;
 int seconds = 0;
 
-int displayState = STATE_DISPLAY_TIME;
+DisplayState displayState = DisplayState(STATE_INITIAL);
 
 time_t previousTime = 0;
 char currentTimeString[6] = {0};
 
+char* scrollMessage = (char*)malloc(1024);
 ButtonTimeDescription button1 = ButtonTimeDescription(BUTTON1_PIN);
