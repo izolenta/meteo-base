@@ -2,14 +2,19 @@
 
 void setup(void)
 {
-  Serial.begin(115200);
 
-  // initialise the LED display
+  Serial.begin(115200);
+  Wire.begin(4, 5);
+  if (!bme.begin(0x76)) {
+    Serial.println("BME SHIT happens");
+  }
+  else {
+    Serial.println("BME OK");
+  }
+  pcf8574.begin();
+
   P.begin(MAX_ZONES);
 
-  // Set up zones for 2 halves of the display
-  // Each zone gets a different font, making up the top
-  // and bottom half of each letter
   P.setZone(ZONE_LOWER, 0, ZONE_SIZE - 1);
   P.setFont(ZONE_LOWER, BigFontLower);
 
@@ -19,8 +24,6 @@ void setup(void)
   P.setZoneEffect(ZONE_UPPER, true, PA_FLIP_UD);
   P.setZoneEffect(ZONE_UPPER, true, PA_FLIP_LR);
   P.setIntensity(4);
-
-  pinMode(BUTTON1_PIN, INPUT);
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, pass);
@@ -38,8 +41,6 @@ void setup(void)
   Serial.print("Local port: ");
   Serial.println(Udp.localPort());
 
-  Wire.begin(4, 5);
-
   _setupRTC();
   _trySyncRTC();
 
@@ -50,6 +51,7 @@ void loop(void)
 {
   _checkTime();
   _checkStateMachine();
+  _checkLocalWeatherSensor();
 
   P.displayAnimate();
 
@@ -63,7 +65,6 @@ void loop(void)
     if (stateChange) {
       P.displayClear();
     }
-    Serial.println("state change requested to" + String(displayState.getRequestedState()));
     if (displayState.getRequestedState() == STATE_DISPLAY_TIME) {
       _displayBigClock();
     }
@@ -71,8 +72,14 @@ void loop(void)
       if (stateChange) {
         P.setFont(ZONE_UPPER, genericFont);
         P.setFont(ZONE_LOWER, genericFont);
-        P.displayZoneText(ZONE_UPPER, "-11\x0a6", PA_LEFT, 0, 4000, PA_PRINT, PA_NO_EFFECT);
-        P.displayZoneText(ZONE_LOWER, "+25\x0a6", PA_LEFT, 0, 4000, PA_PRINT, PA_NO_EFFECT);
+        String homeTempString = String(homeTemp) + "\x0a6";
+        if (homeTemp > 0) {
+          homeTempString = "+"+homeTempString;
+        }
+        homeTempString.toCharArray(homeTemperatureMessage, homeTempString.length()+1);
+
+        P.displayZoneText(ZONE_UPPER, "-17\x0a6", PA_LEFT, 0, 4000, PA_PRINT, PA_NO_EFFECT);
+        P.displayZoneText(ZONE_LOWER, homeTemperatureMessage, PA_LEFT, 0, 4000, PA_PRINT, PA_NO_EFFECT);
       }
       else if (allAnimationComplete) {
         displayState.requestChangeState(STATE_DISPLAY_TIME);
@@ -92,6 +99,11 @@ void loop(void)
     }
     displayState.commitStateChange();
   }
+}
+
+void _checkLocalWeatherSensor() {
+   homeTemp = floor(bme.readTemperature());
+   homePressure = floor(bme.readPressure());
 }
 
 void _checkTime() {
@@ -116,11 +128,23 @@ void _checkStateMachine() {
     else {
       displayState.requestChangeState(STATE_DISPLAY_TIME);
     }
+    return;
   }
   else if (b1 == LONG_PRESS) {
     if (displayState.getCurrentState() == STATE_DISPLAY_TIME) {
       displayState.requestChangeState(STATE_DISPLAY_DATE);
     }
+    return;
+  }
+  int b2 = _checkButtonPress(button2);
+  if (b2 == SHORT_PRESS) {
+    return;
+  }
+  else if (b2 == LONG_PRESS) {
+    if (displayState.getCurrentState() == STATE_DISPLAY_TIME) {
+      displayState.requestChangeState(STATE_DISPLAY_DATE);
+    }
+    return;
   }
 }
 
@@ -154,7 +178,7 @@ String _constructDateString() {
 
 int _checkButtonPress(ButtonTimeDescription &btn) {
 
-  int state = digitalRead(btn.buttonPin);
+  int state = pcf8574.read(btn.buttonPin);
   long endPressed = millis();
   long timeHold = endPressed - btn.startPressed;
 
