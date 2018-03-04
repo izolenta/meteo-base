@@ -40,7 +40,7 @@ const char pass[] = "espnodeMcu^guestPass";       // your network password
 const char delim[] = ":\x080";
 
 const String monthNames[12] = {"€нвар€", "феврал€", "марта", "апрел€", "ма€", "июн€", "июл€", "августа", "сент€бр€", "окт€бр€", "но€бр€", "декабр€"};
-const String dayOfWeekNames[7] = {"понедельник", "вторник", "среда", "четверг", "п€тница", "суббота", "воскресенье"};
+const String dayOfWeekNames[7] = {"воскресенье", "понедельник", "вторник", "среда", "четверг", "п€тница", "суббота"};
 
 WiFiUDP Udp;
 unsigned int localPort = 8888;  // local port to listen for UDP packets

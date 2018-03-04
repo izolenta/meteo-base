@@ -116,6 +116,9 @@ void _checkTime() {
     String result = _get2digits(hours) + delim[second(nowTime) % 2] + _get2digits(minutes);
     result.toCharArray(currentTimeString, 6);
     previousTime = nowTime;
+    if (curr.Second() == 15 || curr.Second() == 45) {
+      displayState.requestChangeState(STATE_DISPLAY_TEMPERATURE);      
+    }
   }
 }
 
@@ -172,7 +175,11 @@ void _displayLowerScroll(String what) {
 
 String _constructDateString() {
   RtcDateTime curr = Rtc.GetDateTime();
-  String result = String(curr.Day()) + " " + monthNames[curr.Month()-1] + " " + String(curr.Year()) + ", "+dayOfWeekNames[curr.DayOfWeek()-1];
+  Serial.println(curr.Day());
+  Serial.println(curr.Month());
+  Serial.println(curr.Year());
+  Serial.println(curr.DayOfWeek());
+  String result = String(curr.Day()) + " " + monthNames[curr.Month()-1] + " " + String(curr.Year()) + ", "+dayOfWeekNames[curr.DayOfWeek()];
   return result;
 }
 
