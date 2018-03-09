@@ -1,22 +1,21 @@
+#pragma once
+
 #include <MD_Parola.h>
 #include <MD_MAX72xx.h>
 #include <SPI.h>
 #include <TimeLib.h>
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
-#include <Wire.h>
-#include <RtcDS3231.h>
-RtcDS3231<TwoWire> Rtc(Wire);
 
 #include <pcf8574_esp.h>
 
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BMP280.h>
 
+#include "time_handle.h"
 #include "Parola_Fonts_data.h"
-#include "ntp_sync.h"
 #include "button_time_description.h"
-#include "display_state.h"
+#include "clock_state.h"
 
 #define MAX_ZONES 2
 #define ZONE_SIZE 4
@@ -42,7 +41,6 @@ const char delim[] = ":\x080";
 const String monthNames[12] = {"€нвар€", "феврал€", "марта", "апрел€", "ма€", "июн€", "июл€", "августа", "сент€бр€", "окт€бр€", "но€бр€", "декабр€"};
 const String dayOfWeekNames[7] = {"воскресенье", "понедельник", "вторник", "среда", "четверг", "п€тница", "суббота"};
 
-WiFiUDP Udp;
 unsigned int localPort = 8888;  // local port to listen for UDP packets
 MD_Parola P = MD_Parola(CS_PIN, MAX_DEVICES);
 
@@ -53,7 +51,8 @@ int seconds = 0;
 int homeTemp = 0;
 int homePressure = 0;
 
-DisplayState displayState = DisplayState(STATE_INITIAL);
+ClockState clockState = ClockState();
+TimeHandle timeHandle = TimeHandle();
 
 time_t previousTime = 0;
 char currentTimeString[6] = {0};

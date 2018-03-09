@@ -8,17 +8,17 @@ private:
   int currentState;
   int requestedState;
 public:
-  DisplayState(int initialState);
+  DisplayState();
   void requestChangeState(int requestedState);
   bool stateChangeRequested();
   int getCurrentState();
   int getRequestedState();
   void commitStateChange();
 };
- 
-DisplayState::DisplayState(int initial) {
-  currentState = initial;
-  requestedState = initial;
+
+DisplayState::DisplayState() {
+  currentState = STATE_INITIAL;
+  requestedState = STATE_INITIAL;
 }
 
 void DisplayState::requestChangeState(int requested) {

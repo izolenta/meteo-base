@@ -41,10 +41,11 @@ void setup(void)
   Serial.print("Local port: ");
   Serial.println(Udp.localPort());
 
-  _setupRTC();
+  timeHandle.setupRtc();
+
   _trySyncRTC();
 
-  displayState.requestChangeState(STATE_DISPLAY_TIME);
+  clockState.displayState.requestChangeState(STATE_DISPLAY_TIME);
 }
 
 void loop(void)
@@ -59,16 +60,16 @@ void loop(void)
   bool lowerAnimationComplete = P.getZoneStatus(ZONE_LOWER);
   bool allAnimationComplete = upperAnimationComplete && lowerAnimationComplete;
   bool someAnimationComplete = upperAnimationComplete || lowerAnimationComplete;
-  bool stateChange = displayState.stateChangeRequested();
+  bool stateChange = clockState.displayState.stateChangeRequested();
 
   if (stateChange || someAnimationComplete) {
     if (stateChange) {
       P.displayClear();
     }
-    if (displayState.getRequestedState() == STATE_DISPLAY_TIME) {
+    if (clockState.displayState.getRequestedState() == STATE_DISPLAY_TIME) {
       _displayBigClock();
     }
-    else if (displayState.getRequestedState() == STATE_DISPLAY_TEMPERATURE) {
+    else if (clockState.displayState.getRequestedState() == STATE_DISPLAY_TEMPERATURE) {
       if (stateChange) {
         P.setFont(ZONE_UPPER, genericFont);
         P.setFont(ZONE_LOWER, genericFont);
@@ -82,10 +83,10 @@ void loop(void)
         P.displayZoneText(ZONE_LOWER, homeTemperatureMessage, PA_LEFT, 0, 4000, PA_PRINT, PA_NO_EFFECT);
       }
       else if (allAnimationComplete) {
-        displayState.requestChangeState(STATE_DISPLAY_TIME);
+        clockState.displayState.requestChangeState(STATE_DISPLAY_TIME);
       }
     }
-    else if (displayState.getRequestedState() == STATE_DISPLAY_DATE) {
+    else if (clockState.displayState.getRequestedState() == STATE_DISPLAY_DATE) {
       if (stateChange) {
         _displayUpperClock();
         _displayLowerScroll(_constructDateString());
@@ -94,10 +95,10 @@ void loop(void)
         _displayUpperClock();
       }
       else if (lowerAnimationComplete) {
-        displayState.requestChangeState(STATE_DISPLAY_TIME);
+        clockState.displayState.requestChangeState(STATE_DISPLAY_TIME);
       }
     }
-    displayState.commitStateChange();
+    clockState.displayState.commitStateChange();
   }
 }
 
@@ -117,25 +118,35 @@ void _checkTime() {
     result.toCharArray(currentTimeString, 6);
     previousTime = nowTime;
     if (curr.Second() == 15 || curr.Second() == 45) {
-      displayState.requestChangeState(STATE_DISPLAY_TEMPERATURE);      
+      clockState.displayState.requestChangeState(STATE_DISPLAY_TEMPERATURE);
+    }
+    if (curr.TotalSeconds() - clockState.lastTimeSyncAttempt > 3600) {
+      _trySyncRTC();
+    }
+    if (curr.TotalSeconds() - clockState.weatherData.lastWeatherSyncAttempt > 300) {
+      clockState.weatherData.updateWeather();
     }
   }
+}
+
+void _trySyncWeather() {
+
 }
 
 void _checkStateMachine() {
   int b1 = _checkButtonPress(button1);
   if (b1 == SHORT_PRESS) {
-    if (displayState.getCurrentState() == STATE_DISPLAY_TIME) {
-      displayState.requestChangeState(STATE_DISPLAY_TEMPERATURE);
+    if (clockState.displayState.getCurrentState() == STATE_DISPLAY_TIME) {
+      clockState.displayState.requestChangeState(STATE_DISPLAY_TEMPERATURE);
     }
     else {
-      displayState.requestChangeState(STATE_DISPLAY_TIME);
+      clockState.displayState.requestChangeState(STATE_DISPLAY_TIME);
     }
     return;
   }
   else if (b1 == LONG_PRESS) {
-    if (displayState.getCurrentState() == STATE_DISPLAY_TIME) {
-      displayState.requestChangeState(STATE_DISPLAY_DATE);
+    if (clockState.displayState.getCurrentState() == STATE_DISPLAY_TIME) {
+      clockState.displayState.requestChangeState(STATE_DISPLAY_DATE);
     }
     return;
   }
@@ -144,8 +155,8 @@ void _checkStateMachine() {
     return;
   }
   else if (b2 == LONG_PRESS) {
-    if (displayState.getCurrentState() == STATE_DISPLAY_TIME) {
-      displayState.requestChangeState(STATE_DISPLAY_DATE);
+    if (clockState.displayState.getCurrentState() == STATE_DISPLAY_TIME) {
+      clockState.displayState.requestChangeState(STATE_DISPLAY_DATE);
     }
     return;
   }
@@ -219,27 +230,11 @@ int _checkButtonPress(ButtonTimeDescription &btn) {
   return NO_RESULT;
 }
 
-void _setupRTC() {
-  Rtc.Begin();
-  if (!Rtc.GetIsRunning())
-  {
-      Serial.println("RTC was not actively running, starting now");
-      Rtc.SetIsRunning(true);
-  }
-  Rtc.Enable32kHzPin(false);
-  Rtc.SetSquareWavePin(DS3231SquareWavePin_ModeNone);
-}
-
 void _trySyncRTC() {
-  Serial.println("trying for sync");
-  time_t res = getNtpTime(Udp);
-  if (res != 0) {
-    RtcDateTime current = RtcDateTime(year(res), month(res), day(res), hour(res), minute(res), second(res));
-    Rtc.SetDateTime(current);
-    RtcDateTime now1 = Rtc.GetDateTime();
-    Serial.println();
-    Serial.println("seems synced!");
+  if (timeHandle.trySyncRtc()) {
+    clockState.lastTimeSync = timeHandle.getCurrentTime().TotalSeconds();
   }
+  clockState.lastTimeSyncAttempt = timeHandle.getCurrentTime().TotalSeconds();
 }
 
 String _get2digits(int number) {
