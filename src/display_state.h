@@ -2,6 +2,7 @@
 #define STATE_DISPLAY_TIME 0
 #define STATE_DISPLAY_TEMPERATURE 1
 #define STATE_DISPLAY_DATE 2
+#define STATE_DISPLAY_CURRENT_WEATHER 3
 
 class DisplayState {
 private:

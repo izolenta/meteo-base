@@ -77,9 +77,15 @@ void loop(void)
         if (homeTemp > 0) {
           homeTempString = "+"+homeTempString;
         }
+        int awayTemp = clockState.weatherData.getAwayTemperature();
+        String awayTempString = String(awayTemp) + "\x0a6";
+        if (awayTemp > 0) {
+          awayTempString = "+"+awayTempString;
+        }
         homeTempString.toCharArray(homeTemperatureMessage, homeTempString.length()+1);
+        awayTempString.toCharArray(awayTemperatureMessage, awayTempString.length()+1);
 
-        P.displayZoneText(ZONE_UPPER, "-17\x0a6", PA_LEFT, 0, 4000, PA_PRINT, PA_NO_EFFECT);
+        P.displayZoneText(ZONE_UPPER, awayTemperatureMessage, PA_LEFT, 0, 4000, PA_PRINT, PA_NO_EFFECT);
         P.displayZoneText(ZONE_LOWER, homeTemperatureMessage, PA_LEFT, 0, 4000, PA_PRINT, PA_NO_EFFECT);
       }
       else if (allAnimationComplete) {
@@ -98,6 +104,19 @@ void loop(void)
         clockState.displayState.requestChangeState(STATE_DISPLAY_TIME);
       }
     }
+    else if (clockState.displayState.getRequestedState() == STATE_DISPLAY_CURRENT_WEATHER) {
+      if (stateChange) {
+        _displayUpperClock();
+        _displayLowerScroll(clockState.weatherData.getWeatherString());
+      }
+      else if (upperAnimationComplete) {
+        _displayUpperClock();
+      }
+      else if (lowerAnimationComplete) {
+        clockState.displayState.requestChangeState(STATE_DISPLAY_TIME);
+      }
+    }
+
     clockState.displayState.commitStateChange();
   }
 }
@@ -110,27 +129,30 @@ void _checkLocalWeatherSensor() {
 void _checkTime() {
   time_t nowTime = now();
   if (nowTime > previousTime) {
-    RtcDateTime curr = Rtc.GetDateTime();
+    RtcDateTime curr = timeHandle.getCurrentTime();
     hours = curr.Hour();
     minutes = curr.Minute();
     seconds = curr.Second();
     String result = _get2digits(hours) + delim[second(nowTime) % 2] + _get2digits(minutes);
     result.toCharArray(currentTimeString, 6);
     previousTime = nowTime;
-    if (curr.Second() == 15 || curr.Second() == 45) {
+    if ((curr.Second() == 15 || curr.Second() == 45) && clockState.displayState.getCurrentState() == STATE_DISPLAY_TIME) {
       clockState.displayState.requestChangeState(STATE_DISPLAY_TEMPERATURE);
     }
     if (curr.TotalSeconds() - clockState.lastTimeSyncAttempt > 3600) {
       _trySyncRTC();
     }
-    if (curr.TotalSeconds() - clockState.weatherData.lastWeatherSyncAttempt > 300) {
-      clockState.weatherData.updateWeather();
+    if (curr.TotalSeconds() - clockState.weatherData.lastWeatherSyncAttempt > 600) {
+      _trySyncWeather();
     }
   }
 }
 
 void _trySyncWeather() {
-
+  if (clockState.weatherData.updateWeather()) {
+    clockState.weatherData.lastWeatherTodaySync = timeHandle.getCurrentTime().TotalSeconds();
+  }
+  clockState.weatherData.lastWeatherSyncAttempt = timeHandle.getCurrentTime().TotalSeconds();
 }
 
 void _checkStateMachine() {
@@ -152,6 +174,7 @@ void _checkStateMachine() {
   }
   int b2 = _checkButtonPress(button2);
   if (b2 == SHORT_PRESS) {
+    clockState.displayState.requestChangeState(STATE_DISPLAY_CURRENT_WEATHER);
     return;
   }
   else if (b2 == LONG_PRESS) {
