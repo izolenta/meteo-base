@@ -27,6 +27,9 @@
 #define CS_PIN    15
 #define BUTTON1_PIN  1
 #define BUTTON2_PIN  0
+#define ENCODER_A_PIN  2
+#define ENCODER_B_PIN  3
+#define BUTTON_ENCODER_PIN  4
 
 #define LONG_PRESS 1
 #define SHORT_PRESS 2
@@ -51,6 +54,9 @@ int seconds = 0;
 int homeTemp = 0;
 int homePressure = 0;
 
+int encoder_a_state = 0;
+long unsigned int encoder_next_check = 0;
+
 ClockState clockState = ClockState();
 TimeHandle timeHandle = TimeHandle();
 
@@ -63,6 +69,7 @@ char* awayTemperatureMessage = (char*)malloc(8);
 
 ButtonTimeDescription button1 = ButtonTimeDescription(BUTTON1_PIN);
 ButtonTimeDescription button2 = ButtonTimeDescription(BUTTON2_PIN);
+ButtonTimeDescription buttonEncoder = ButtonTimeDescription(BUTTON_ENCODER_PIN);
 
 PCF857x pcf8574(0x20, &Wire);
 Adafruit_BMP280 bme;

@@ -156,6 +156,28 @@ void _trySyncWeather() {
 }
 
 void _checkStateMachine() {
+  _checkButtons();
+  _checkEncoder();
+}
+
+void _checkEncoder() {
+  if (millis() >= encoder_next_check) {
+    int state = pcf8574.read(ENCODER_A_PIN);
+    int direction = pcf8574.read(ENCODER_B_PIN);
+    if (state == LOW && encoder_a_state == HIGH) {
+      if (direction == HIGH) {
+        Serial.println("Right");
+      }
+      else {
+        Serial.println("Left");
+      }
+    }
+    encoder_a_state = state;
+    encoder_next_check = millis() + 6;
+  }
+}
+
+void _checkButtons() {
   int b1 = _checkButtonPress(button1);
   if (b1 == SHORT_PRESS) {
     if (clockState.displayState.getCurrentState() == STATE_DISPLAY_TIME) {
@@ -178,6 +200,17 @@ void _checkStateMachine() {
     return;
   }
   else if (b2 == LONG_PRESS) {
+    if (clockState.displayState.getCurrentState() == STATE_DISPLAY_TIME) {
+      clockState.displayState.requestChangeState(STATE_DISPLAY_DATE);
+    }
+    return;
+  }
+  int bEnc = _checkButtonPress(buttonEncoder, true);
+  if (bEnc == SHORT_PRESS) {
+    clockState.displayState.requestChangeState(STATE_DISPLAY_CURRENT_WEATHER);
+    return;
+  }
+  else if (bEnc == LONG_PRESS) {
     if (clockState.displayState.getCurrentState() == STATE_DISPLAY_TIME) {
       clockState.displayState.requestChangeState(STATE_DISPLAY_DATE);
     }
@@ -218,8 +251,16 @@ String _constructDateString() {
 }
 
 int _checkButtonPress(ButtonTimeDescription &btn) {
+  return _checkButtonPress(btn, false);
+}
+
+int _checkButtonPress(ButtonTimeDescription &btn, bool inverted) {
 
   int state = pcf8574.read(btn.buttonPin);
+  if (inverted) {
+    state = 1 - state;
+  }
+
   long endPressed = millis();
   long timeHold = endPressed - btn.startPressed;
 
