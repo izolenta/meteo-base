@@ -66,6 +66,15 @@ void loop(void)
     if (stateChange) {
       P.displayClear();
     }
+    if (clockState.displayState.getRequestedState() == STATE_INCREASE_ALARM_ENCODER) {
+      clockState.increaseBrightness();
+      P.setIntensity(clockState.getBrightness());
+      P.displayAnimate();
+    }
+    if (clockState.displayState.getRequestedState() == STATE_DECREASE_ALARM_ENCODER) {
+      clockState.decreaseBrightness();
+      P.setIntensity(clockState.getBrightness());
+    }
     if (clockState.displayState.getRequestedState() == STATE_DISPLAY_TIME) {
       _displayBigClock();
     }
@@ -166,14 +175,14 @@ void _checkEncoder() {
     int direction = pcf8574.read(ENCODER_B_PIN);
     if (state == LOW && encoder_a_state == HIGH) {
       if (direction == HIGH) {
-        Serial.println("Right");
+        clockState.displayState.requestChangeState(STATE_INCREASE_ALARM_ENCODER);
       }
       else {
-        Serial.println("Left");
+        clockState.displayState.requestChangeState(STATE_DECREASE_ALARM_ENCODER);
       }
     }
     encoder_a_state = state;
-    encoder_next_check = millis() + 6;
+    encoder_next_check = millis() + 5;
   }
 }
 

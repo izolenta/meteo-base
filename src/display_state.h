@@ -3,6 +3,8 @@
 #define STATE_DISPLAY_TEMPERATURE 1
 #define STATE_DISPLAY_DATE 2
 #define STATE_DISPLAY_CURRENT_WEATHER 3
+#define STATE_DECREASE_ALARM_ENCODER 4
+#define STATE_INCREASE_ALARM_ENCODER 5
 
 class DisplayState {
 private:
@@ -41,5 +43,11 @@ int DisplayState::getRequestedState() {
 }
 
 void DisplayState::commitStateChange() {
-  currentState = requestedState;
+  if (requestedState == STATE_DECREASE_ALARM_ENCODER || requestedState == STATE_INCREASE_ALARM_ENCODER) {
+    requestedState = currentState;
+  }
+  else {
+    currentState = requestedState;
+  }
 }
+  
